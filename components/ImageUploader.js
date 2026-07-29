@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { createClient } from "../lib/supabase";
+import { createClient } from "../lib/supabase-browser";
 
 export default function ImageUploader({ label, folder, onUploaded, existingUrl }) {
   const supabase = createClient();
