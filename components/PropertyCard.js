@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Heart, Share2, MapPin } from "lucide-react";
-import { createClient } from "../lib/supabase";
+import { createClient } from "../lib/supabase-browser";
 
 export default function PropertyCard({ property, distanceKm, initiallySaved, onRequestContact }) {
   const supabase = createClient();
