@@ -1,70 +1,69 @@
-"use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { createClient } from "../../lib/supabase-browser";
-import { LogOut } from "lucide-react";
+'use client'
+import Link from 'next/link'
+import { useAuth } from '../../context/AuthContext'
+import BottomNav from '../../components/BottomNav'
+import ProtectedRoute from '../../components/ProtectedRoute'
+
+const NAV = [
+  { path: '/tenant', label: 'Explore' },
+  { path: '/tenant/looking', label: 'Favourites' },
+  { path: '/landlord/notifications', label: 'Alerts' },
+  { path: '/profile', label: 'Profile' },
+]
+
+function initials(name) {
+  if (!name) return '?'
+  return name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()
+}
 
 export default function ProfilePage() {
-  const supabase = createClient();
-  const router = useRouter();
-  const [profile, setProfile] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-
-  useEffect(() => {
-    loadProfile();
-  }, []);
-
-  async function loadProfile() {
-    setLoading(true);
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      setError("Not logged in.");
-      setLoading(false);
-      return;
-    }
-
-    const { data, error } = await supabase.from("profiles").select("*").eq("id", user.id).single();
-
-    if (error) {
-      setError(error.message);
-    } else {
-      setProfile(data);
-    }
-    setLoading(false);
-  }
-
-  async function handleLogout() {
-    await supabase.auth.signOut();
-    router.push("/login");
-    router.refresh();
-  }
-
-  if (loading) return <p className="text-center text-muted text-sm py-16">Loading profile...</p>;
-  if (error) return <p className="text-center text-rust text-sm py-16">{error}</p>;
+  const { user, profile, signOut } = useAuth()
 
   return (
-    <div className="pb-20">
-      <div className="flex flex-col items-center pt-6 pb-6">
-        <div className="w-20 h-20 rounded-full bg-signal text-white flex items-center justify-center font-display text-2xl">
-          {(profile.full_name || profile.email || "?").slice(0, 2).toUpperCase()}
+    <ProtectedRoute>
+      <div className="min-h-screen bg-gray-50 pb-20 p-4">
+        <div className="flex flex-col items-center pt-6 pb-8">
+          <div className="w-24 h-24 rounded-full bg-blue-900 text-white flex items-center justify-center text-3xl font-bold mb-4">
+            {initials(profile?.legal_name)}
+          </div>
+          <div className="text-xl font-bold">{profile?.legal_name || user?.email}</div>
+          <div className="text-gray-400 capitalize">
+            {profile?.role} {profile?.city ? `· ${profile.city}` : ''}
+          </div>
         </div>
-        <p className="font-display text-xl text-ink mt-3">{profile.full_name || "Unnamed user"}</p>
-        <p className="text-sm text-muted">{profile.role} · {profile.city || "No city set"}</p>
-      </div>
 
-      <div className="px-4">
+        <div className="flex gap-4 mb-6">
+          <div className="flex-1 bg-white border rounded-xl py-4 text-center">
+            <div className="text-2xl font-bold text-blue-900">{profile?.views ?? 0}</div>
+            <div className="text-sm text-gray-500">Views</div>
+          </div>
+          <div className="flex-1 bg-white border rounded-xl py-4 text-center">
+            <div className="text-2xl font-bold text-blue-900">{profile?.likes ?? 0}</div>
+            <div className="text-sm text-gray-500">Likes</div>
+          </div>
+        </div>
+
+        <div className="bg-white border rounded-xl overflow-hidden mb-4">
+          <Link href="/profile/settings" className="flex items-center justify-between px-4 py-4 border-b">
+            <span>Account Settings</span>
+            <span className="text-gray-300">{'>'}</span>
+          </Link>
+          <Link href="/profile/help" className="flex items-center justify-between px-4 py-4">
+            <span>Get help</span>
+            <span className="text-gray-300">{'>'}</span>
+          </Link>
+        </div>
+
         <button
-          onClick={handleLogout}
-          className="w-full mt-4 rounded-card border border-rust/30 bg-white py-4 text-rust font-medium flex items-center justify-center gap-2"
+          onClick={signOut}
+          className="w-full bg-white border rounded-xl py-4 text-red-600 font-semibold"
         >
-          <LogOut size={18} /> Log out
+          Log out
         </button>
+
+        <BottomNav items={NAV} />
       </div>
-    </div>
-  );
+    </ProtectedRoute>
+  )
 }
