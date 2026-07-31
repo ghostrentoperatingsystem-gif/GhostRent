@@ -14,4 +14,4 @@ export default function Toggle({ checked, onChange, disabled }) {
       <span className="w-6 h-6 bg-white rounded-full shadow" />
     </button>
   )
-}
+} 
