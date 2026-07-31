@@ -1,17 +1,18 @@
-'use client'
-export default function Toggle({ checked, onChange, disabled }) {
+export default function Toggle({ checked, onChange, disabled = false }) {
   return (
     <button
       type="button"
-      role="switch"
-      aria-checked={checked}
       disabled={disabled}
-      onClick={() => onChange(!checked)}
-      className={`w-12 h-7 rounded-full flex items-center px-0.5 transition-colors shrink-0 ${
-        checked ? 'bg-blue-900 justify-end' : 'bg-gray-200 justify-start'
-      } ${disabled ? 'opacity-50' : ''}`}
+      onClick={() => !disabled && onChange(!checked)}
+      className={`relative flex h-8 w-14 items-center rounded-full transition-colors ${
+        checked ? "bg-blue-600" : "bg-gray-300"
+      } ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
     >
-      <span className="w-6 h-6 bg-white rounded-full shadow" />
+      <span
+        className={`h-6 w-6 rounded-full bg-white shadow transform transition-transform ${
+          checked ? "translate-x-7" : "translate-x-1"
+        }`}
+      />
     </button>
-  )
-} 
+  );
+}
