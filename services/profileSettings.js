@@ -1,6 +1,8 @@
 'use client'
 
-import { supabase } from '@/lib/supabase-browser'
+import { createClient } from '@/lib/supabase-browser'
+
+const supabase = createClient()
 
 /**
  * Update a single profile field
