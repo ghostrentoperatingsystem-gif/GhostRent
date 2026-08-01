@@ -1,0 +1,408 @@
+'use client'
+
+import { useState, useEffect } from 'react'
+import { useAuth } from '@/context/AuthContext'
+import ProtectedRoute from '@/components/ProtectedRoute'
+import BackHeader from '@/components/BackHeader'
+import BottomNav from '@/components/BottomNav'
+import { supabase } from '@/lib/supabase-browser'
+import { Camera, Send, Home, MapPin, DollarSign, Bed, Bath, AlertCircle } from 'lucide-react'
+
+export default function LookingFor() {
+  const { user, profile } = useAuth()
+  const [requests, setRequests] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [submitting, setSubmitting] = useState(false)
+  const [form, setForm] = useState({
+    property_type: 'apartment',
+    bedrooms: 1,
+    bathrooms: 1,
+    budget_min: '',
+    budget_max: '',
+    area: '',
+    city: '',
+    move_date: '',
+    description: ''
+  })
+  const [selfie, setSelfie] = useState(null)
+  const [selfieUrl, setSelfieUrl] = useState('')
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
+
+  // Load existing requests
+  useEffect(() => {
+    async function loadRequests() {
+      if (!user) return
+
+      const { data, error } = await supabase
+        .from('tenant_requests')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+
+      if (error) {
+        console.error('Error loading requests:', error)
+        return
+      }
+
+      setRequests(data || [])
+      setLoading(false)
+    }
+
+    loadRequests()
+  }, [user])
+
+  const handleFileChange = (e) => {
+    const file = e.target.files[0]
+    if (file) {
+      setSelfie(file)
+      const reader = new FileReader()
+      reader.onload = (event) => setSelfieUrl(event.target.result)
+      reader.readAsDataURL(file)
+    }
+  }
+
+  const uploadSelfie = async (userId) => {
+    if (!selfie) return null
+
+    const fileExt = selfie.name.split('.').pop()
+    const fileName = `${userId}/selfie-${Date.now()}.${fileExt}`
+
+    const { data, error } = await supabase.storage
+      .from('tenant-requests')
+      .upload(fileName, selfie, {
+        cacheControl: '3600',
+        upsert: false
+      })
+
+    if (error) throw error
+
+    const { data: urlData } = supabase.storage
+      .from('tenant-requests')
+      .getPublicUrl(fileName)
+
+    return urlData.publicUrl
+  }
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    setError('')
+    setSuccess('')
+    setSubmitting(true)
+
+    if (!profile?.full_name) {
+      setError('Please complete your profile first (full name required)')
+      setSubmitting(false)
+      return
+    }
+
+    try {
+      const selfieImage = selfie ? await uploadSelfie(user.id) : null
+
+      const payload = {
+        user_id: user.id,
+        property_type: form.property_type,
+        bedrooms: parseInt(form.bedrooms) || 1,
+        bathrooms: parseInt(form.bathrooms) || 1,
+        budget_min: form.budget_min ? parseFloat(form.budget_min) : null,
+        budget_max: form.budget_max ? parseFloat(form.budget_max) : null,
+        area: form.area,
+        city: form.city,
+        move_date: form.move_date,
+        description: form.description,
+        selfie_url: selfieImage,
+        is_active: true
+      }
+
+      const { error } = await supabase
+        .from('tenant_requests')
+        .insert([payload])
+
+      if (error) throw error
+
+      setSuccess('Request posted successfully! Landlords can now find you.')
+      setForm({
+        property_type: 'apartment',
+        bedrooms: 1,
+        bathrooms: 1,
+        budget_min: '',
+        budget_max: '',
+        area: '',
+        city: '',
+        move_date: '',
+        description: ''
+      })
+      setSelfie(null)
+      setSelfieUrl('')
+      // Refresh list
+      const { data } = await supabase
+        .from('tenant_requests')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+      setRequests(data || [])
+    } catch (err) {
+      setError(err.message || 'Something went wrong')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const deactivateRequest = async (id) => {
+    const { error } = await supabase
+      .from('tenant_requests')
+      .update({ is_active: false })
+      .eq('id', id)
+      .eq('user_id', user.id)
+
+    if (!error) {
+      setRequests(prev => prev.map(r => 
+        r.id === id ? { ...r, is_active: false } : r
+      ))
+    }
+  }
+
+  return (
+    <ProtectedRoute requireRole>
+      <div className="min-h-screen bg-paper pb-24">
+        <BackHeader title="Looking For" />
+
+        <div className="p-4 space-y-6">
+          {/* New request form */}
+          <div className="bg-white rounded-card border border-line p-4">
+            <h2 className="font-display text-lg font-bold mb-3">Post what you're looking for</h2>
+            <p className="text-sm text-muted mb-4">
+              Landlords with matching properties will contact you directly.
+            </p>
+
+            {error && (
+              <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-card text-sm mb-3 flex items-center gap-2">
+                <AlertCircle className="w-4 h-4" />
+                {error}
+              </div>
+            )}
+            {success && (
+              <div className="bg-green-50 border border-green-200 text-green-700 px-3 py-2 rounded-card text-sm mb-3">
+                ✅ {success}
+              </div>
+            )}
+
+            <form onSubmit={handleSubmit} className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-muted block mb-1">Property type</label>
+                  <select
+                    value={form.property_type}
+                    onChange={(e) => setForm({ ...form, property_type: e.target.value })}
+                    className="w-full px-3 py-2 border border-line rounded-card focus:outline-none focus:ring-2 focus:ring-signal text-sm"
+                  >
+                    <option value="apartment">Apartment</option>
+                    <option value="house">House</option>
+                    <option value="townhouse">Townhouse</option>
+                    <option value="studio">Studio</option>
+                    <option value="land">Land</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-muted block mb-1">City</label>
+                  <input
+                    type="text"
+                    value={form.city}
+                    onChange={(e) => setForm({ ...form, city: e.target.value })}
+                    placeholder="e.g. Cape Town"
+                    className="w-full px-3 py-2 border border-line rounded-card focus:outline-none focus:ring-2 focus:ring-signal text-sm"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs text-muted block mb-1">Area / Suburb</label>
+                <input
+                  type="text"
+                  value={form.area}
+                  onChange={(e) => setForm({ ...form, area: e.target.value })}
+                  placeholder="e.g. Sea Point"
+                  className="w-full px-3 py-2 border border-line rounded-card focus:outline-none focus:ring-2 focus:ring-signal text-sm"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-muted block mb-1">Bedrooms</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="10"
+                    value={form.bedrooms}
+                    onChange={(e) => setForm({ ...form, bedrooms: parseInt(e.target.value) || 1 })}
+                    className="w-full px-3 py-2 border border-line rounded-card focus:outline-none focus:ring-2 focus:ring-signal text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-muted block mb-1">Bathrooms</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="10"
+                    value={form.bathrooms}
+                    onChange={(e) => setForm({ ...form, bathrooms: parseInt(e.target.value) || 1 })}
+                    className="w-full px-3 py-2 border border-line rounded-card focus:outline-none focus:ring-2 focus:ring-signal text-sm"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-muted block mb-1">Budget min (R)</label>
+                  <input
+                    type="number"
+                    value={form.budget_min}
+                    onChange={(e) => setForm({ ...form, budget_min: e.target.value })}
+                    placeholder="5000"
+                    className="w-full px-3 py-2 border border-line rounded-card focus:outline-none focus:ring-2 focus:ring-signal text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-muted block mb-1">Budget max (R)</label>
+                  <input
+                    type="number"
+                    value={form.budget_max}
+                    onChange={(e) => setForm({ ...form, budget_max: e.target.value })}
+                    placeholder="15000"
+                    className="w-full px-3 py-2 border border-line rounded-card focus:outline-none focus:ring-2 focus:ring-signal text-sm"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs text-muted block mb-1">Move date</label>
+                <input
+                  type="date"
+                  value={form.move_date}
+                  onChange={(e) => setForm({ ...form, move_date: e.target.value })}
+                  className="w-full px-3 py-2 border border-line rounded-card focus:outline-none focus:ring-2 focus:ring-signal text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs text-muted block mb-1">Description</label>
+                <textarea
+                  value={form.description}
+                  onChange={(e) => setForm({ ...form, description: e.target.value })}
+                  placeholder="Tell landlords about yourself, your family, pets, etc."
+                  rows="3"
+                  className="w-full px-3 py-2 border border-line rounded-card focus:outline-none focus:ring-2 focus:ring-signal text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs text-muted block mb-1">Selfie (optional, helps with verification)</label>
+                <div className="flex items-center gap-3">
+                  <label className="flex-1 cursor-pointer">
+                    <div className="border-2 border-dashed border-line rounded-card p-3 text-center hover:border-signal transition">
+                      <Camera className="w-5 h-5 mx-auto text-muted" />
+                      <span className="text-xs text-muted block">Upload selfie</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleFileChange}
+                        className="hidden"
+                      />
+                    </div>
+                  </label>
+                  {selfieUrl && (
+                    <div className="relative w-16 h-16 rounded-full overflow-hidden border-2 border-signal flex-shrink-0">
+                      <img src={selfieUrl} alt="Selfie preview" className="w-full h-full object-cover" />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={submitting}
+                className="w-full bg-signal text-white py-3 rounded-card hover:bg-signalDark disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center justify-center gap-2"
+              >
+                <Send className="w-4 h-4" />
+                {submitting ? 'Posting...' : 'Post Request'}
+              </button>
+            </form>
+          </div>
+
+          {/* Existing requests */}
+          <div>
+            <h2 className="font-display text-lg font-bold mb-3">Your requests</h2>
+            {loading ? (
+              <div className="text-center text-muted py-4">Loading...</div>
+            ) : requests.length === 0 ? (
+              <div className="bg-white rounded-card border border-line p-8 text-center">
+                <Home className="w-8 h-8 text-muted mx-auto mb-2" />
+                <p className="text-muted">You haven't posted any requests yet</p>
+                <p className="text-sm text-muted mt-1">
+                  Fill out the form above to let landlords find you
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {requests.map((req) => (
+                  <div
+                    key={req.id}
+                    className={`bg-white rounded-card border p-4 ${req.is_active ? 'border-signal/30' : 'border-line opacity-60'}`}
+                  >
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="font-medium">{req.property_type}</p>
+                        <p className="text-sm text-muted">
+                          {req.area && `${req.area}, `}{req.city}
+                        </p>
+                        <div className="flex gap-3 text-xs text-muted mt-1">
+                          <span className="flex items-center gap-1">
+                            <Bed className="w-3 h-3" /> {req.bedrooms} beds
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <Bath className="w-3 h-3" /> {req.bathrooms} baths
+                          </span>
+                          {req.budget_max && (
+                            <span className="flex items-center gap-1">
+                              <DollarSign className="w-3 h-3" /> R{req.budget_min || 0} - R{req.budget_max}
+                            </span>
+                          )}
+                        </div>
+                        {req.description && (
+                          <p className="text-sm text-muted mt-1 line-clamp-2">{req.description}</p>
+                        )}
+                        {req.selfie_url && (
+                          <img
+                            src={req.selfie_url}
+                            alt="Selfie"
+                            className="w-12 h-12 rounded-full object-cover mt-2 border-2 border-line"
+                          />
+                        )}
+                      </div>
+                      <div className="flex flex-col items-end gap-1">
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${req.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-muted'}`}>
+                          {req.is_active ? 'Active' : 'Inactive'}
+                        </span>
+                        {req.is_active && (
+                          <button
+                            onClick={() => deactivateRequest(req.id)}
+                            className="text-xs text-red-500 hover:text-red-700"
+                          >
+                            Deactivate
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <BottomNav />
+      </div>
+    </ProtectedRoute>
+  )
+}
