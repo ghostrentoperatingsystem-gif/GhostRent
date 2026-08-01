@@ -1,0 +1,156 @@
+'use client'
+
+import { useState } from 'react'
+import { useAuth } from '@/context/AuthContext'
+import ProtectedRoute from '@/components/ProtectedRoute'
+import BackHeader from '@/components/BackHeader'
+import BottomNav from '@/components/BottomNav'
+import { supabase } from '@/lib/supabase-browser'
+import { ChevronDown, ChevronUp, Mail, Phone, BookOpen, MessageSquare } from 'lucide-react'
+
+export default function HelpPage() {
+  const { user } = useAuth()
+  const [expanded, setExpanded] = useState(null)
+  const [feedback, setFeedback] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [submitted, setSubmitted] = useState(false)
+
+  const faqs = [
+    {
+      q: 'How do I list a property?',
+      a: 'Go to your Landlord dashboard and click the "+ Add Property" button. Fill in all the details, upload photos, and submit. Your listing will be reviewed and published once approved.'
+    },
+    {
+      q: 'How does the contact unlock work?',
+      a: 'When a tenant requests contact info for your property, you\'ll receive a notification. After you approve the request, the tenant pays R99 to unlock your contact details (phone/WhatsApp). Once paid, you can chat directly in the app.'
+    },
+    {
+      q: 'How do I get paid?',
+      a: 'Rental and sale transactions happen outside GhostRent. We only facilitate the connection. The R99 contact unlock fee is paid via Paystack to cover platform costs.'
+    },
+    {
+      q: 'Is my data safe?',
+      a: 'Yes. We use Supabase with Row Level Security (RLS) to ensure you only see data you\'re authorized to access. Your contact details are only shared after payment and mutual approval.'
+    },
+    {
+      q: 'Can I edit a listing after publishing?',
+      a: 'Yes. Go to your Landlord dashboard, find the property, click "Edit", make your changes, and save. If it\'s already published, it will stay published while you edit.'
+    },
+    {
+      q: 'How do I delete a listing?',
+      a: 'In your Landlord dashboard, find the property and click the delete/expire button. This will set the status to "expired" and it will no longer be visible to tenants.'
+    }
+  ]
+
+  const handleSubmitFeedback = async (e) => {
+    e.preventDefault()
+    if (!feedback.trim() || submitting) return
+
+    setSubmitting(true)
+    const { error } = await supabase
+      .from('contact_requests')
+      .insert([{
+        sender_id: user.id,
+        receiver_id: user.id, // self-feedback
+        property_id: null,
+        message: `[HELP FEEDBACK] ${feedback.trim()}`,
+        status: 'pending'
+      }])
+
+    if (!error) {
+      setSubmitted(true)
+      setFeedback('')
+    }
+    setSubmitting(false)
+  }
+
+  return (
+    <ProtectedRoute requireRole>
+      <div className="min-h-screen bg-paper pb-24">
+        <BackHeader title="Help & Support" />
+
+        <div className="p-4 space-y-6">
+          {/* Quick links */}
+          <div className="grid grid-cols-3 gap-3">
+            <a href="mailto:support@ghostrent.co.za" className="bg-white rounded-card border border-line p-4 text-center hover:shadow-md transition">
+              <Mail className="w-5 h-5 mx-auto text-signal" />
+              <p className="text-xs mt-1 text-muted">Email</p>
+            </a>
+            <button className="bg-white rounded-card border border-line p-4 text-center hover:shadow-md transition">
+              <Phone className="w-5 h-5 mx-auto text-signal" />
+              <p className="text-xs mt-1 text-muted">Call</p>
+            </button>
+            <button className="bg-white rounded-card border border-line p-4 text-center hover:shadow-md transition">
+              <BookOpen className="w-5 h-5 mx-auto text-signal" />
+              <p className="text-xs mt-1 text-muted">Guide</p>
+            </button>
+          </div>
+
+          {/* FAQ section */}
+          <div>
+            <h2 className="font-display text-lg font-bold mb-3">Frequently Asked Questions</h2>
+            <div className="space-y-2">
+              {faqs.map((faq, index) => (
+                <div key={index} className="bg-white rounded-card border border-line overflow-hidden">
+                  <button
+                    onClick={() => setExpanded(expanded === index ? null : index)}
+                    className="w-full px-4 py-3 text-left flex justify-between items-center hover:bg-paper/50 transition"
+                  >
+                    <span className="font-medium">{faq.q}</span>
+                    {expanded === index ? (
+                      <ChevronUp className="w-4 h-4 text-muted" />
+                    ) : (
+                      <ChevronDown className="w-4 h-4 text-muted" />
+                    )}
+                  </button>
+                  {expanded === index && (
+                    <div className="px-4 pb-3 text-muted text-sm border-t border-line pt-3">
+                      {faq.a}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Feedback form */}
+          <div className="bg-white rounded-card border border-line p-4">
+            <h2 className="font-display text-lg font-bold mb-2">Send Feedback</h2>
+            <p className="text-sm text-muted mb-3">
+              Help us improve GhostRent. What's on your mind?
+            </p>
+            {submitted ? (
+              <div className="text-center py-4">
+                <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-2">
+                  <CheckCircle className="w-6 h-6 text-green-600" />
+                </div>
+                <p className="text-sm font-medium">Thank you for your feedback!</p>
+                <p className="text-xs text-muted mt-1">We'll review it and get back to you if needed.</p>
+              </div>
+            ) : (
+              <form onSubmit={handleSubmitFeedback}>
+                <textarea
+                  value={feedback}
+                  onChange={(e) => setFeedback(e.target.value)}
+                  placeholder="Share your thoughts, suggestions, or issues..."
+                  rows="4"
+                  className="w-full px-3 py-2 border border-line rounded-card focus:outline-none focus:ring-2 focus:ring-signal text-sm"
+                  required
+                />
+                <button
+                  type="submit"
+                  disabled={submitting || !feedback.trim()}
+                  className="mt-3 bg-signal text-white px-4 py-2 rounded-card hover:bg-signalDark disabled:opacity-50 disabled:cursor-not-allowed transition text-sm"
+                >
+                  {submitting ? 'Sending...' : 'Send Feedback'}
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+
+        <BottomNav />
+      </div>
+    </ProtectedRoute>
+  )
+}
