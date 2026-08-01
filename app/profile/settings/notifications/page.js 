@@ -1,0 +1,129 @@
+'use client'
+
+import { useState, useEffect } from 'react'
+import { useAuth } from '@/context/AuthContext'
+import ProtectedRoute from '@/components/ProtectedRoute'
+import BackHeader from '@/components/BackHeader'
+import BottomNav from '@/components/BottomNav'
+import SettingsRow from '@/components/SettingsRow'
+import { getSettings, updateSetting } from '@/services/profileSettings'
+
+export default function NotificationSettings() {
+  const { user, refreshProfile } = useAuth()
+  const [settings, setSettings] = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    async function loadSettings() {
+      if (!user) return
+      try {
+        const data = await getSettings(user.id)
+        setSettings(data)
+      } catch (error) {
+        console.error('Error loading settings:', error)
+      }
+      setLoading(false)
+    }
+    loadSettings()
+  }, [user])
+
+  const toggleSetting = async (key, value) => {
+    if (!user) return
+    try {
+      await updateSetting(user.id, key, value)
+      await refreshProfile()
+      // Update local state
+      setSettings(prev => ({
+        ...prev,
+        [key.split('.')[0]]: {
+          ...prev?.[key.split('.')[0]],
+          ...key.split('.').slice(1).reduceRight((acc, k, i, arr) => {
+            if (i === arr.length - 1) {
+              return { [k]: value }
+            }
+            return { [k]: acc }
+          }, {})
+        }
+      }))
+    } catch (error) {
+      console.error('Error updating setting:', error)
+    }
+  }
+
+  if (loading) {
+    return (
+      <ProtectedRoute requireRole>
+        <div className="min-h-screen bg-paper">
+          <BackHeader title="Notifications" />
+          <div className="p-4 text-center text-muted">Loading...</div>
+          <BottomNav />
+        </div>
+      </ProtectedRoute>
+    )
+  }
+
+  const prefs = settings?.notifications || {}
+
+  return (
+    <ProtectedRoute requireRole>
+      <div className="min-h-screen bg-paper pb-24">
+        <BackHeader title="Notifications" />
+
+        <div className="p-4 space-y-4">
+          <div className="bg-white rounded-card border border-line overflow-hidden">
+            <SettingsRow
+              label="Email notifications"
+              description="Receive property alerts and updates via email"
+              type="toggle"
+              value={prefs.email !== false}
+              onChange={(val) => toggleSetting('notifications.email', val)}
+            />
+            <SettingsRow
+              label="Push notifications"
+              description="Get real-time alerts on your phone"
+              type="toggle"
+              value={prefs.push !== false}
+              onChange={(val) => toggleSetting('notifications.push', val)}
+            />
+            <SettingsRow
+              label="Property view alerts"
+              description="Get notified when someone views your listing"
+              type="toggle"
+              value={prefs.views !== false}
+              onChange={(val) => toggleSetting('notifications.views', val)}
+            />
+            <SettingsRow
+              label="Tenant request alerts"
+              description="Get notified when tenants request contact"
+              type="toggle"
+              value={prefs.requests !== false}
+              onChange={(val) => toggleSetting('notifications.requests', val)}
+            />
+            <SettingsRow
+              label="Payment confirmation"
+              description="Get notified when a payment is completed"
+              type="toggle"
+              value={prefs.payments !== false}
+              onChange={(val) => toggleSetting('notifications.payments', val)}
+            />
+            <SettingsRow
+              label="Message notifications"
+              description="Get notified when you receive a new message"
+              type="toggle"
+              value={prefs.messages !== false}
+              onChange={(val) => toggleSetting('notifications.messages', val)}
+            />
+          </div>
+
+          <div className="bg-white rounded-card border border-line p-4">
+            <p className="text-sm text-muted">
+              Notification preferences are stored in your profile. You can change these at any time.
+            </p>
+          </div>
+        </div>
+
+        <BottomNav />
+      </div>
+    </ProtectedRoute>
+  )
+}
