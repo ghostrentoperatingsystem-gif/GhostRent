@@ -1,6 +1,6 @@
 'use client'
 import { createContext, useContext, useEffect, useState } from 'react'
-import { supabase } from '../lib/supabase'
+import { createClient } from '@/lib/supabase-browser'
 
 const AuthContext = createContext({})
 
@@ -9,6 +9,7 @@ export function AuthProvider({ children }) {
   const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
   const [profileLoading, setProfileLoading] = useState(true)
+  const supabase = createClient()
 
   async function refreshProfile(userOverride) {
     setProfileLoading(true)
