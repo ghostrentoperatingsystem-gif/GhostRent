@@ -1,0 +1,114 @@
+'use client'
+
+import { useState, useEffect } from 'react'
+import { useAuth } from '@/context/AuthContext'
+import ProtectedRoute from '@/components/ProtectedRoute'
+import BackHeader from '@/components/BackHeader'
+import BottomNav from '@/components/BottomNav'
+import SettingsRow from '@/components/SettingsRow'
+import { getSettings, updateSetting } from '@/services/profileSettings'
+
+export default function AccessibilitySettings() {
+  const { user, refreshProfile } = useAuth()
+  const [settings, setSettings] = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    async function loadSettings() {
+      if (!user) return
+      try {
+        const data = await getSettings(user.id)
+        setSettings(data)
+      } catch (error) {
+        console.error('Error loading settings:', error)
+      }
+      setLoading(false)
+    }
+    loadSettings()
+  }, [user])
+
+  const toggleSetting = async (key, value) => {
+    if (!user) return
+    try {
+      await updateSetting(user.id, key, value)
+      await refreshProfile()
+      setSettings(prev => ({
+        ...prev,
+        [key.split('.')[0]]: {
+          ...prev?.[key.split('.')[0]],
+          ...key.split('.').slice(1).reduceRight((acc, k, i, arr) => {
+            if (i === arr.length - 1) {
+              return { [k]: value }
+            }
+            return { [k]: acc }
+          }, {})
+        }
+      }))
+    } catch (error) {
+      console.error('Error updating setting:', error)
+    }
+  }
+
+  if (loading) {
+    return (
+      <ProtectedRoute requireRole>
+        <div className="min-h-screen bg-paper">
+          <BackHeader title="Accessibility" />
+          <div className="p-4 text-center text-muted">Loading...</div>
+          <BottomNav />
+        </div>
+      </ProtectedRoute>
+    )
+  }
+
+  const a11y = settings?.accessibility || {}
+
+  return (
+    <ProtectedRoute requireRole>
+      <div className="min-h-screen bg-paper pb-24">
+        <BackHeader title="Accessibility" />
+
+        <div className="p-4 space-y-4">
+          <div className="bg-white rounded-card border border-line overflow-hidden">
+            <SettingsRow
+              label="Large text"
+              description="Increase font size for better readability"
+              type="toggle"
+              value={a11y.largeText || false}
+              onChange={(val) => toggleSetting('accessibility.largeText', val)}
+            />
+            <SettingsRow
+              label="High contrast"
+              description="Use high contrast colors for better visibility"
+              type="toggle"
+              value={a11y.highContrast || false}
+              onChange={(val) => toggleSetting('accessibility.highContrast', val)}
+            />
+            <SettingsRow
+              label="Screen reader friendly"
+              description="Optimize for screen readers and assistive tech"
+              type="toggle"
+              value={a11y.screenReader || false}
+              onChange={(val) => toggleSetting('accessibility.screenReader', val)}
+            />
+            <SettingsRow
+              label="Reduce motion"
+              description="Minimize animations and transitions"
+              type="toggle"
+              value={a11y.reduceMotion || false}
+              onChange={(val) => toggleSetting('accessibility.reduceMotion', val)}
+            />
+          </div>
+
+          <div className="bg-white rounded-card border border-line p-4">
+            <p className="text-sm text-muted">
+              Accessibility preferences are stored in your profile and apply across all devices.
+            </p>
+          </div>
+        </div>
+
+        <BottomNav />
+      </div>
+    </ProtectedRoute>
+  )
+}
