@@ -23,7 +23,7 @@ const LINKS: MenuLink[] = [
 export default function SideMenu({ open, onClose }: SideMenuProps) {
   if (!open) return null
   return (
-    <div className="fixed inset-0 z-50 flex">
+    <div className="fixed inset-0 z-50 flex" role="dialog" aria-modal="true" aria-label="Side menu">
       <div className="w-[280px] bg-white h-full p-6 flex flex-col">
         <h2 className="text-2xl font-bold text-blue-900 mb-6">GhostRent</h2>
         <nav className="flex flex-col">
@@ -31,7 +31,7 @@ export default function SideMenu({ open, onClose }: SideMenuProps) {
             <Link
               key={l.href}
               href={l.href}
-              onClick={onClose}
+              onClick={() => onClose()}
               className="py-3 border-b text-[15px]"
             >
               {l.label}
@@ -39,7 +39,7 @@ export default function SideMenu({ open, onClose }: SideMenuProps) {
           ))}
         </nav>
       </div>
-      <button className="flex-1 bg-black/30" onClick={onClose} aria-label="Close menu" />
+      <button type="button" className="flex-1 bg-black/30" onClick={onClose} aria-label="Close menu"></button>
     </div>
   )
 }
